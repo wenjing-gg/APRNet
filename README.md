@@ -2,13 +2,13 @@
 
 # APRNet
 
-**Anatomy-aware Pretraining and Pseudo-label Rectification for Semi-Supervised Maxillary Sinus Segmentation**
+**APRNet: Anatomy-guided Progressive Pseudo-label Rectification for Semi-supervised Maxillary Sinus Segmentation**
 
 Semi-Supervised Maxillary Sinus Segmentation
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 
-<!-- <img src="assets/appr-overview.svg" alt="APPR overview" width="100%" /> -->
+<!-- <img src="assets/appr-overview.svg" alt="APRNet overview" width="100%" /> -->
 <p align="center">
   <img src="figures/framework.png" alt="APRNet Overall Framework" width="900">
 </p>
@@ -20,8 +20,8 @@ Semi-Supervised Maxillary Sinus Segmentation
 APRNet is a three-stage semi-supervised framework designed for anatomically constrained bilateral maxillary sinus segmentation.
 
 - **Stage I – Anatomy-aware pretraining** initializes the segmentation network with robust aerated-region priors extracted from unlabeled scans.
-- **Stage II – Semantic rectification** improves labeled supervision with side-aware constraints that reduce left-right semantic confusion.
-- **Stage III – Pseudo-label co-refinement** progressively fuses anatomical priors and model predictions to obtain cleaner unlabeled supervision.
+- **Stage II – Semantic misalignment rectification (SMR)** improves labeled supervision with side-aware constraints that reduce left-right semantic confusion.
+- **Stage III – Co-refined pseudo-label generation (CPG)** progressively fuses anatomical priors and model predictions to obtain cleaner unlabeled supervision.
 
 This repository contains the core training, evaluation, prior modeling, loss design, and 3D backbone implementation used by APRNet.
 
@@ -34,8 +34,8 @@ Semi-supervised medical image segmentation aims to leverage large volumes of unl
 APRNet follows a progressive training pipeline:
 
 1. **Anatomy-aware pretraining** extracts stable aerated-region priors from unlabeled scans to warm-start the model.
-2. **Semantic rectification** imposes side-aware supervision to reduce left-right confusion and preserve bilateral exclusivity.
-3. **Pseudo-label co-refinement** jointly uses prior guidance and segmentation responses to iteratively improve unlabeled supervision.
+2. **Semantic misalignment rectification (SMR)** imposes side-aware supervision to reduce left-right confusion and preserve bilateral exclusivity.
+3. **Co-refined pseudo-label generation (CPG)** jointly uses prior guidance and segmentation responses to iteratively improve unlabeled supervision.
 
 In practice, the framework is designed to improve three things at once: foreground localization, bilateral semantic consistency, and boundary quality.
 
@@ -98,7 +98,7 @@ Key notes:
 APRNet is organized around two public craniofacial datasets described in the manuscript:
 
 - **NasalSeg**: 130 craniofacial 3D CT volumes with bilateral maxillary sinus annotations.
-- **ToothFairy2**: a multicenter CBCT benchmark, from which 45 maxillary-sinus-labeled cases are used in this project.
+- **ToothFairy3**: a CBCT benchmark, from which 45 cases with complete bilateral maxillary sinus coverage and annotations are used in this project.
 
 The experimental protocol uses an `8:2` train/test split and semi-supervised settings with `5%`, `10%`, `20%`, and `50%` labeled data.
 
@@ -115,7 +115,7 @@ python train.py \
   --amp
 ```
 
-### Stage II: supervised semantic rectification
+### Stage II: semantic misalignment rectification (SMR)
 
 ```bash
 python train.py \
@@ -127,7 +127,7 @@ python train.py \
   --amp
 ```
 
-### Stage III: collaborative pseudo-label refinement
+### Stage III: co-refined pseudo-label generation (CPG)
 
 ```bash
 python train.py \
@@ -158,482 +158,552 @@ python eval.py \
   <img src="figures/combined.png" alt="SOTA Quantitative Results" width="850">
 </p>
 <p align="center"><em>Table 1: Quantitative comparison between APRNet and state-of-the-art methods.</em></p> -->
-<p><strong>Comparison of maxillary sinus segmentation results on NasalSeg and ToothFairy2 under different labeled-data ratios.</p>
+<p><strong>Comparison of maxillary sinus segmentation results on NasalSeg and ToothFairy3 under different labeled-data ratios.</strong> All methods are evaluated over three independent runs. Values are means and sample standard deviations across run-wise test-set averages. The 100% row is the fully supervised reference. Red and orange indicate the best and second-best results within each labeled-data ratio. BH-adjusted q markers compare APRNet with the best-performing competing method for each ratio, metric and side: *, ** and *** denote q &lt; 0.05, q &lt; 0.01 and q &lt; 0.001; ns denotes q ≥ 0.05. Markers indicate two-sided significance; the metric values determine the direction of the difference.</p>
 
 <table border="1" cellpadding="4" cellspacing="0" style="width:100%; font-size:12px; border-collapse:collapse; text-align:center;">
-  <thead>
-    <tr>
-      <th>Dataset</th>
-      <th>Ratio</th>
-      <th>Model</th>
-      <th>Dice↑<br/>(Left / Right Sinus)</th>
-      <th>PPV↑<br/>(Left / Right Sinus)</th>
-      <th>HD95↓<br/>(Left / Right Sinus)</th>
-      <th>ASSD↓<br/>(Left / Right Sinus)</th>
-    </tr>
-  </thead>
+  <thead><tr><th>Dataset</th><th>Ratio</th><th>Model</th><th>Dice ↑<br/>Left / Right</th><th>PPV ↑<br/>Left / Right</th><th>HD95 (mm) ↓<br/>Left / Right</th><th>ASSD (mm) ↓<br/>Left / Right</th></tr></thead>
   <tbody>
     <tr>
-      <td rowspan="32" style="writing-mode:vertical-rl; transform:rotate(180deg); font-weight:bold;">NasalSeg</td>
-      <td rowspan="8" style="font-weight:bold;">5%</td>
+      <td rowspan="41" style="font-weight:bold;">NasalSeg</td>
+      <td rowspan="1" style="font-weight:bold;">100%</td>
+      <td>Fully supervised reference</td>
+      <td>0.9767±0.0231 / 0.9887±0.0167</td>
+      <td>0.9809±0.0228 / 0.9842±0.0154</td>
+      <td>2.36±0.61 / 2.10±0.75</td>
+      <td>0.70±0.08 / 0.72±0.11</td>
+    </tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">5%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.5313±0.1957 / 0.4751±0.1552</td>
-      <td>0.8549±0.2181 / 0.9328±0.1496</td>
-      <td>8.91±5.26 / 17.50±9.11</td>
-      <td>2.06±2.33 / 2.47±0.65</td>
+      <td>0.8465±0.0110 / 0.8419±0.0039</td>
+      <td>0.7961±0.0208 / 0.7943±0.0081</td>
+      <td>23.20±2.37 / 22.78±1.20</td>
+      <td>5.68±0.72 / 5.67±0.26</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td>0.5602±0.2996 / 0.4390±0.2241</td>
-      <td>0.7660±0.3349 / 0.7984±0.2988</td>
-      <td>20.91±30.41 / 20.25±27.61</td>
-      <td>13.07±25.74 / 11.19±23.11</td>
+      <td>0.8780±0.0207 / 0.8878±0.0213</td>
+      <td>0.8621±0.0233 / 0.8960±0.0233</td>
+      <td><span style="color:orange">4.94±1.15</span> / <span style="color:orange">4.22±1.30</span></td>
+      <td>2.66±0.83 / 2.53±0.88</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.7459±0.1141 / 0.6177±0.1653</td>
-      <td>0.6288±0.1436 / 0.4760±0.1722</td>
-      <td>38.12±16.52 / 82.56±24.36</td>
-      <td>9.12±5.15 / 24.12±11.01</td>
+      <td>0.7900±0.0200 / 0.7600±0.0265</td>
+      <td>0.6800±0.0300 / 0.6367±0.0404</td>
+      <td>23.39±4.41 / 25.07±3.59</td>
+      <td>5.25±1.13 / 6.10±0.92</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.5835±0.0845 / 0.5469±0.1119</td>
-      <td>0.4295±0.0855 / 0.3962±0.1016</td>
-      <td>83.28±6.84 / 82.59±7.23</td>
-      <td>26.18±4.90 / 26.63±5.51</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td>0.8422±0.0336 / 0.8208±0.0326</td>
+      <td>0.7948±0.0511 / 0.7709±0.0453</td>
+      <td>20.15±3.77 / 20.48±5.92</td>
+      <td>3.62±0.70 / 3.83±0.92</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.7469±0.1946 / 0.7376±0.1649</td>
-      <td>0.9306±0.1668 / <span style="color:red">0.9352±0.1460</span></td>
-      <td>10.35±11.53 / 12.05±14.41</td>
-      <td>3.10±4.56 / 3.16±4.96</td>
+      <td>0.8310±0.0126 / 0.8400±0.0188</td>
+      <td>0.8390±0.0401 / 0.8317±0.0502</td>
+      <td>24.37±1.92 / 26.40±1.40</td>
+      <td>4.55±1.12 / 4.65±1.00</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td>0.5442±0.3280 / 0.5590±0.3075</td>
-      <td>0.4675±0.3413 / 0.4713±0.3188</td>
-      <td>33.80±22.56 / 36.27±25.05</td>
-      <td>15.30±11.74 / 16.40±12.29</td>
+      <td>0.6413±0.0733 / 0.6474±0.0716</td>
+      <td>0.5787±0.0886 / 0.5848±0.0687</td>
+      <td>23.54±5.69 / 24.14±3.13</td>
+      <td>8.89±3.22 / 8.64±2.27</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td><span style="color:orange">0.8898±0.1670</span> / <span style="color:orange">0.8658±0.1876</span></td>
-      <td><span style="color:red">0.9601±0.0681</span> / 0.9046±0.2131</td>
-      <td><span style="color:orange">3.95±6.71</span> / <span style="color:orange">6.33±13.08</span></td>
-      <td><span style="color:red">0.99±0.99</span> / <span style="color:orange">2.40±4.80</span></td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9126±0.0814</span> / <span style="color:red">0.8991±0.0983</span></td>
-      <td><span style="color:orange">0.9447±0.1166</span> / <span style="color:orange">0.9335±0.1444</span></td>
-      <td><span style="color:red">3.35±14.26</span> / <span style="color:red">2.89±14.75</span></td>
-      <td><span style="color:orange">1.64±1.80</span> / <span style="color:red">1.65±1.93</span></td>
+      <td><span style="color:orange">0.9034±0.0079</span> / <span style="color:orange">0.8914±0.0090</span></td>
+      <td>0.8835±0.0204 / 0.8738±0.0198</td>
+      <td>6.58±1.21 / 6.37±1.91</td>
+      <td><span style="color:orange">1.14±0.04</span> / <span style="color:orange">1.16±0.16</span></td>
     </tr>
     <tr>
-      <td rowspan="8" style="font-weight:bold;">10%</td>
+      <td>ERSR</td>
+      <td>0.8968±0.0106 / 0.8723±0.0091</td>
+      <td><span style="color:orange">0.9121±0.0291</span> / <span style="color:orange">0.9141±0.0161</span></td>
+      <td>14.06±12.44 / 16.54±9.17</td>
+      <td>1.91±1.37 / 2.54±1.13</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.9196±0.0201</span> / <span style="color:red">0.9079±0.0288</span></td>
+      <td><span style="color:red">0.9664±0.0135</span> / <span style="color:red">0.9588±0.0213</span></td>
+      <td><span style="color:red">2.42±1.50</span> / <span style="color:red">2.41±1.16</span></td>
+      <td><span style="color:red">0.47±0.24</span> / <span style="color:red">0.50±0.24</span></td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td></tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">10%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.8861±0.1894 / <span style="color:orange">0.9265±0.1135</span></td>
-      <td>0.7661±0.2820 / 0.7440±0.2398</td>
-      <td>4.42±9.32 / <span style="color:orange">2.18±2.92</span></td>
-      <td>3.09±10.72 / <span style="color:orange">0.73±0.64</span></td>
+      <td>0.8534±0.0056 / 0.8484±0.0059</td>
+      <td>0.7968±0.0095 / 0.7946±0.0147</td>
+      <td>21.85±2.89 / 22.11±1.43</td>
+      <td>5.70±0.28 / 5.65±0.08</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td>0.6547±0.3060 / 0.6560±0.3282</td>
-      <td>0.7912±0.3450 / 0.7945±0.3474</td>
-      <td>17.67±29.55 / 18.94±31.27</td>
-      <td>11.78±24.34 / 12.47±25.79</td>
+      <td>0.8929±0.0018 / 0.9018±0.0009</td>
+      <td>0.8739±0.0020 / <span style="color:orange">0.9043±0.0029</span></td>
+      <td><span style="color:orange">4.08±0.13</span> / <span style="color:orange">3.41±0.07</span></td>
+      <td>2.14±0.02 / 2.00±0.01</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.7614±0.1049 / 0.6712±0.1834</td>
-      <td>0.6602±0.1499 / 0.5395±0.1959</td>
-      <td>31.58±15.53 / 64.34±39.78</td>
-      <td>7.32±3.92 / 18.95±15.70</td>
+      <td>0.7967±0.0321 / 0.7467±0.0208</td>
+      <td>0.6800±0.0436 / 0.6167±0.0306</td>
+      <td>23.26±6.24 / 19.70±3.17</td>
+      <td>4.99±1.45 / 5.20±0.77</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.6168±0.0727 / 0.5780±0.1029</td>
-      <td>0.4569±0.0757 / 0.4207±0.0950</td>
-      <td>83.53±7.49 / 82.17±8.90</td>
-      <td>24.67±5.51 / 25.25±5.78</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td>0.9119±0.0120 / 0.9002±0.0148</td>
+      <td>0.8843±0.0157 / 0.8729±0.0126</td>
+      <td>10.03±3.44 / 8.99±5.86</td>
+      <td>2.12±0.63 / 2.36±0.71</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.8605±0.1828 / 0.8508±0.1925</td>
-      <td>0.9026±0.1839 / 0.8974±0.1827</td>
-      <td>14.15±13.78 / 16.40±15.68</td>
-      <td>2.39±2.51 / 3.22±5.29</td>
+      <td>0.8915±0.0059 / 0.8870±0.0149</td>
+      <td>0.8828±0.0075 / 0.8846±0.0219</td>
+      <td>22.33±1.93 / 23.52±4.84</td>
+      <td>2.97±0.11 / 3.11±0.93</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td><span style="color:orange">0.8958±0.0990</span> / 0.9019±0.0661</td>
-      <td>0.8306±0.1148 / 0.8385±0.0567</td>
-      <td>8.93±17.01 / 8.30±16.73</td>
-      <td>3.90±6.66 / 2.84±3.80</td>
+      <td>0.8699±0.0082 / 0.8858±0.0094</td>
+      <td>0.7937±0.0082 / 0.8086±0.0100</td>
+      <td>12.08±2.52 / 9.50±0.32</td>
+      <td>2.51±0.11 / 1.81±0.16</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td>0.8957±0.1830 / 0.8977±0.1222</td>
-      <td><span style="color:orange">0.9422±0.0848</span> / <span style="color:orange">0.9150±0.1412</span></td>
-      <td><span style="color:orange">3.18±5.06</span> / 5.95±13.32</td>
-      <td><span style="color:orange">0.91±1.04</span> / 2.05±4.46</td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9388±0.0351</span> / <span style="color:red">0.9332±0.0782</span></td>
-      <td><span style="color:red">0.9453±0.0421</span> / <span style="color:red">0.9285±0.1147</span></td>
-      <td><span style="color:red">2.72±6.95</span> / <span style="color:red">1.78±3.07</span></td>
-      <td><span style="color:red">0.40±0.68</span> / <span style="color:red">0.32±0.53</span></td>
+      <td>0.9047±0.0178 / 0.9000±0.0218</td>
+      <td>0.8866±0.0054 / 0.8677±0.0114</td>
+      <td>5.13±1.32 / 4.87±3.16</td>
+      <td><span style="color:orange">0.97±0.24</span> / <span style="color:orange">0.99±0.39</span></td>
     </tr>
     <tr>
-      <td rowspan="8" style="font-weight:bold;">20%</td>
+      <td>ERSR</td>
+      <td><span style="color:orange">0.9196±0.0099</span> / <span style="color:orange">0.9097±0.0021</span></td>
+      <td><span style="color:orange">0.8984±0.0148</span> / 0.8920±0.0204</td>
+      <td>19.24±5.98 / 14.34±5.42</td>
+      <td>2.33±0.82 / 2.39±0.73</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.9338±0.0175</span> / <span style="color:red">0.9356±0.0167</span></td>
+      <td><span style="color:red">0.9592±0.0065</span> / <span style="color:red">0.9525±0.0134</span></td>
+      <td><span style="color:red">1.55±0.65</span> / <span style="color:red">1.73±0.82</span></td>
+      <td><span style="color:red">0.29±0.10</span> / <span style="color:red">0.32±0.13</span></td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td></tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">20%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.8182±0.1835 / 0.8257±0.1097</td>
-      <td><span style="color:red">0.9712±0.1471</span> / 0.8920±0.1973</td>
-      <td>5.39±11.20 / 5.74±4.34</td>
-      <td>2.27±6.95 / <span style="color:orange">1.52±1.45</span></td>
+      <td>0.8529±0.0156 / 0.8462±0.0091</td>
+      <td>0.7931±0.0257 / 0.7890±0.0130</td>
+      <td>22.94±5.88 / 20.61±2.46</td>
+      <td>5.90±1.00 / 5.70±0.58</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td>0.8181±0.2435 / 0.8012±0.2605</td>
-      <td>0.8270±0.2487 / 0.8464±0.2541</td>
-      <td>10.89±23.77 / 11.00±23.34</td>
-      <td>6.58±19.35 / 6.47±18.74</td>
+      <td>0.9092±0.0203 / 0.9152±0.0233</td>
+      <td>0.8938±0.0206 / <span style="color:orange">0.9216±0.0221</span></td>
+      <td><span style="color:orange">3.30±1.15</span> / <span style="color:orange">2.69±1.13</span></td>
+      <td>1.59±0.92 / 1.46±0.91</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.7670±0.1172 / 0.6860±0.2145</td>
-      <td>0.6448±0.1438 / 0.5669±0.2189</td>
-      <td>30.87±14.07 / 71.59±31.92</td>
-      <td>7.09±4.55 / 20.51±12.34</td>
+      <td>0.7933±0.0058 / 0.7800±0.0300</td>
+      <td>0.6733±0.0058 / 0.6667±0.0351</td>
+      <td>22.07±0.06 / 25.19±13.62</td>
+      <td>4.75±0.18 / 5.84±2.83</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.6416±0.0549 / 0.6010±0.0889</td>
-      <td>0.4814±0.0598 / 0.4418±0.0845</td>
-      <td>82.06±12.62 / 80.47±14.05</td>
-      <td>23.25±6.21 / 24.13±6.27</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td>0.9079±0.0102 / 0.9011±0.0090</td>
+      <td>0.8773±0.0178 / 0.8747±0.0118</td>
+      <td>13.77±6.70 / 11.42±4.65</td>
+      <td>2.55±0.99 / 2.53±0.78</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.8952±0.1826 / 0.8980±0.1817</td>
-      <td>0.9077±0.1876 / <span style="color:orange">0.9133±0.1848</span></td>
-      <td>11.40±17.47 / 10.59±16.87</td>
-      <td>3.46±9.99 / 3.44±10.19</td>
+      <td>0.9025±0.0071 / 0.9061±0.0001</td>
+      <td><span style="color:orange">0.8973±0.0193</span> / 0.9084±0.0162</td>
+      <td>17.90±4.91 / 14.47±4.56</td>
+      <td>2.62±0.53 / 2.20±0.60</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td><span style="color:orange">0.9119±0.0751</span> / <span style="color:orange">0.9102±0.0623</span></td>
-      <td>0.8498±0.0940 / 0.8486±0.0597</td>
-      <td>4.24±13.69 / <span style="color:orange">4.32±11.90</span></td>
-      <td>2.64±4.82 / 2.18±3.42</td>
+      <td>0.8904±0.0052 / 0.8954±0.0036</td>
+      <td>0.8146±0.0062 / 0.8180±0.0061</td>
+      <td>8.79±5.16 / 7.99±2.00</td>
+      <td>1.87±0.42 / 1.54±0.22</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td>0.9091±0.1478 / 0.8838±0.1714</td>
-      <td><span style="color:orange">0.9509±0.0701</span> / 0.9065±0.1845</td>
-      <td><span style="color:red">2.73±4.06</span> / 6.25±13.73</td>
-      <td><span style="color:orange">0.87±1.08</span> / 2.20±4.52</td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9455±0.0276</span> / <span style="color:red">0.9301±0.0895</span></td>
-      <td>0.9431±0.0502 / <span style="color:red">0.9202±0.1255</span></td>
-      <td><span style="color:orange">3.78±7.89</span> / <span style="color:red">2.53±5.46</span></td>
-      <td><span style="color:red">0.62±0.78</span> / <span style="color:red">0.50±0.93</span></td>
+      <td>0.9116±0.0041 / 0.8986±0.0106</td>
+      <td>0.8852±0.0048 / 0.8667±0.0206</td>
+      <td>6.07±2.35 / 5.12±1.79</td>
+      <td><span style="color:orange">1.00±0.21</span> / <span style="color:orange">1.06±0.23</span></td>
     </tr>
     <tr>
-      <td rowspan="8" style="font-weight:bold;">50%</td>
+      <td>ERSR</td>
+      <td><span style="color:orange">0.9258±0.0102</span> / <span style="color:orange">0.9181±0.0034</span></td>
+      <td>0.8970±0.0220 / 0.9034±0.0037</td>
+      <td>12.44±10.41 / 8.86±3.15</td>
+      <td>1.71±1.18 / 1.63±0.19</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.9524±0.0046</span> / <span style="color:red">0.9497±0.0103</span></td>
+      <td><span style="color:red">0.9539±0.0502</span> / <span style="color:red">0.9628±0.0542</span></td>
+      <td><span style="color:red">1.05±1.57</span> / <span style="color:red">1.08±1.46</span></td>
+      <td><span style="color:red">0.22±0.35</span> / <span style="color:red">0.22±0.33</span></td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td></tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">50%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.8293±0.1848 / 0.8020±0.1763</td>
-      <td>0.9519±0.2002 / 0.9071±0.2289</td>
-      <td>5.89±14.55 / 6.86±8.99</td>
-      <td>1.64±4.00 / 3.23±9.55</td>
+      <td>0.8789±0.0090 / 0.8749±0.0035</td>
+      <td>0.8487±0.0208 / 0.8458±0.0100</td>
+      <td>17.69±3.54 / 13.09±0.44</td>
+      <td>4.65±0.53 / 4.30±0.08</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td>0.7574±0.3212 / 0.7535±0.3200</td>
-      <td>0.8123±0.3011 / 0.8318±0.3076</td>
-      <td>13.78±28.38 / 13.91±27.93</td>
-      <td>8.98±22.04 / 8.98±21.64</td>
+      <td>0.9114±0.0189 / 0.9171±0.0174</td>
+      <td>0.8973±0.0180 / <span style="color:orange">0.9225±0.0199</span></td>
+      <td><span style="color:orange">3.30±1.11</span> / <span style="color:orange">2.67±1.07</span></td>
+      <td>1.56±0.92 / 1.45±0.90</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.7988±0.1056 / 0.6778±0.1903</td>
-      <td>0.6885±0.1394 / 0.5518±0.2074</td>
-      <td>26.65±15.05 / 61.10±36.10</td>
-      <td>6.01±4.13 / 19.44±15.59</td>
+      <td>0.8100±0.0200 / 0.8133±0.0058</td>
+      <td>0.6967±0.0252 / 0.7167±0.0058</td>
+      <td>18.13±2.77 / 12.05±0.41</td>
+      <td>3.83±0.51 / 3.17±0.23</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.6509±0.0528 / 0.6100±0.0842</td>
-      <td>0.4917±0.0582 / 0.4505±0.0816</td>
-      <td>80.78±14.77 / 80.18±14.04</td>
-      <td>22.45±5.64 / 23.88±6.52</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td><span style="color:orange">0.9261±0.0032</span> / 0.9182±0.0068</td>
+      <td>0.9131±0.0049 / 0.9098±0.0135</td>
+      <td>8.40±1.39 / 6.32±0.93</td>
+      <td>1.70±0.25 / 1.67±0.19</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td><span style="color:orange">0.9087±0.1335</span> / <span style="color:orange">0.9200±0.1110</span></td>
-      <td>0.9286±0.1528 / 0.9455±0.1014</td>
-      <td>7.34±12.88 / 6.64±11.81</td>
-      <td>2.11±3.49 / <span style="color:orange">1.62±2.58</span></td>
+      <td>0.9093±0.0058 / 0.9090±0.0018</td>
+      <td><span style="color:orange">0.9178±0.0125</span> / 0.9087±0.0068</td>
+      <td>16.06±3.03 / 24.10±5.98</td>
+      <td>2.09±0.32 / 2.59±0.45</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td>0.9076±0.1088 / 0.9153±0.0469</td>
-      <td>0.8470±0.1230 / 0.8528±0.0539</td>
-      <td><span style="color:orange">4.04±12.92</span> / <span style="color:orange">4.58±15.17</span></td>
-      <td>1.96±5.23 / 1.79±3.44</td>
+      <td>0.8966±0.0108 / 0.9075±0.0049</td>
+      <td>0.8308±0.0073 / 0.8404±0.0040</td>
+      <td>5.33±1.95 / 4.62±0.71</td>
+      <td>1.54±0.18 / 1.14±0.18</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td>0.8618±0.1753 / 0.8507±0.1598</td>
-      <td><span style="color:red">0.9707±0.0623</span> / <span style="color:orange">0.9505±0.1158</span></td>
-      <td>4.46±6.47 / 6.53±12.45</td>
-      <td><span style="color:orange">1.22±0.97</span> / 2.18±4.25</td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9594±0.0175</span> / <span style="color:red">0.9601±0.0214</span></td>
-      <td><span style="color:orange">0.9641±0.0198</span> / <span style="color:red">0.9594±0.0328</span></td>
-      <td><span style="color:red">0.77±0.39</span> / <span style="color:red">0.96±1.33</span></td>
-      <td><span style="color:red">0.18±0.11</span> / <span style="color:red">0.24±0.47</span></td>
+      <td>0.9051±0.0055 / 0.9051±0.0038</td>
+      <td>0.8784±0.0171 / 0.8907±0.0088</td>
+      <td>8.48±1.84 / 6.10±1.60</td>
+      <td>1.30±0.14 / <span style="color:orange">1.07±0.14</span></td>
     </tr>
     <tr>
-      <td rowspan="32" style="writing-mode:vertical-rl; transform:rotate(180deg); font-weight:bold;">ToothFairy2</td>
-      <td rowspan="8" style="font-weight:bold;">5%</td>
+      <td>ERSR</td>
+      <td>0.9214±0.0066 / <span style="color:orange">0.9186±0.0078</span></td>
+      <td>0.9154±0.0221 / 0.9032±0.0242</td>
+      <td>10.06±4.36 / 13.72±8.34</td>
+      <td><span style="color:orange">1.29±0.32</span> / 2.27±1.21</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.9597±0.0054</span> / <span style="color:red">0.9576±0.0049</span></td>
+      <td><span style="color:red">0.9530±0.0041</span> / <span style="color:red">0.9537±0.0061</span></td>
+      <td><span style="color:red">0.83±0.18</span> / <span style="color:red">1.15±0.11</span></td>
+      <td><span style="color:red">0.18±0.04</span> / <span style="color:red">0.21±0.04</span></td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td></tr>
+    <tr>
+      <td rowspan="41" style="font-weight:bold;">ToothFairy3</td>
+      <td rowspan="1" style="font-weight:bold;">100%</td>
+      <td>Fully supervised reference</td>
+      <td>0.9661±0.0123 / 0.9723±0.0284</td>
+      <td>0.9818±0.0288 / 0.9691±0.0129</td>
+      <td>3.75±0.91 / 2.91±0.75</td>
+      <td>0.72±0.11 / 0.88±0.25</td>
+    </tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">5%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.2828±0.1823 / 0.2401±0.2120</td>
-      <td>0.5000±0.2965 / 0.4435±0.2932</td>
-      <td>53.55±20.27 / 54.31±33.92</td>
-      <td>15.95±11.07 / 17.74±14.22</td>
+      <td>0.3038±0.0201 / 0.2543±0.0578</td>
+      <td>0.4107±0.0853 / 0.2753±0.0698</td>
+      <td>68.45±17.28 / 75.66±8.64</td>
+      <td>16.32±6.28 / 22.04±4.02</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td>0.4649±0.2460 / 0.5054±0.1941</td>
-      <td>0.7103±0.2242 / 0.6069±0.1861</td>
-      <td>40.74±24.41 / 26.76±22.52</td>
-      <td>7.51±5.58 / 5.88±4.70</td>
+      <td>0.4902±0.1566 / 0.5181±0.0691</td>
+      <td>0.6146±0.2554 / 0.4990±0.0911</td>
+      <td>43.35±27.81 / 50.58±18.00</td>
+      <td>13.75±14.36 / 13.47±7.00</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.1554±0.0626 / 0.1130±0.0532</td>
-      <td>0.0970±0.0439 / 0.0660±0.0327</td>
-      <td>77.78±22.22 / 62.06±38.75</td>
-      <td>29.70±12.14 / 24.75±19.73</td>
+      <td>0.6529±0.1728 / 0.6331±0.1683</td>
+      <td>0.8268±0.1165 / 0.6507±0.0956</td>
+      <td><span style="color:orange">8.58±6.27</span> / <span style="color:orange">14.57±4.49</span></td>
+      <td><span style="color:orange">2.43±2.33</span> / 3.90±1.53</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.5062±0.1516 / 0.4474±0.1390</td>
-      <td>0.3851±0.1477 / 0.3194±0.1209</td>
-      <td>48.42±11.77 / 45.37±7.30</td>
-      <td>14.27±2.77 / 16.00±3.86</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td><span style="color:orange">0.7087±0.0135</span> / 0.6764±0.0710</td>
+      <td>0.6736±0.0175 / 0.6792±0.0254</td>
+      <td>18.99±4.91 / 22.77±0.58</td>
+      <td>4.32±0.52 / 4.47±0.31</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.6482±0.1135 / 0.5931±0.2408</td>
-      <td>0.6911±0.1711 / 0.5730±0.2647</td>
-      <td>112.30±68.19 / 111.04±68.70</td>
-      <td>23.78±17.18 / 29.74±25.45</td>
+      <td>0.6377±0.0584 / 0.5836±0.0665</td>
+      <td>0.7886±0.0775 / 0.7621±0.1037</td>
+      <td>33.43±9.63 / 29.86±10.66</td>
+      <td>5.36±2.64 / 5.97±2.56</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td>0.5522±0.1585 / 0.4726±0.1892</td>
-      <td>0.4751±0.1947 / 0.3561±0.1929</td>
-      <td>211.86±40.95 / 197.27±34.28</td>
-      <td>66.83±15.10 / 79.63±20.59</td>
+      <td>0.5105±0.0525 / 0.5041±0.0306</td>
+      <td>0.4676±0.0263 / 0.3976±0.0180</td>
+      <td>61.52±1.39 / 59.16±1.73</td>
+      <td>13.83±0.52 / 19.13±1.45</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td><span style="color:orange">0.6856±0.3608</span> / <span style="color:orange">0.7611±0.3394</span></td>
-      <td><span style="color:orange">0.7784±0.3536</span> / <span style="color:orange">0.9223±0.0536</span></td>
-      <td><span style="color:orange">16.75±28.01</span> / <span style="color:orange">6.64±7.95</span></td>
-      <td><span style="color:orange">3.01±4.47</span> / <span style="color:red">0.96±0.57</span></td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9133±0.1155</span> / <span style="color:red">0.9158±0.1387</span></td>
-      <td><span style="color:red">0.9796±0.0898</span> / <span style="color:red">0.9573±0.1123</span></td>
-      <td><span style="color:red">2.88±0.93</span> / <span style="color:red">4.89±2.44</span></td>
-      <td><span style="color:red">1.23±1.01</span> / <span style="color:orange">2.58±1.88</span></td>
+      <td>0.6762±0.0130 / <span style="color:red">0.8654±0.0222</span></td>
+      <td><span style="color:red">0.9204±0.0273</span> / <span style="color:red">0.9577±0.0080</span></td>
+      <td><span style="color:red">3.29±1.01</span> / <span style="color:red">1.96±0.79</span></td>
+      <td><span style="color:red">0.92±0.09</span> / <span style="color:red">0.47±0.09</span></td>
     </tr>
     <tr>
-      <td rowspan="8" style="font-weight:bold;">10%</td>
+      <td>ERSR</td>
+      <td>0.0854±0.0658 / 0.2095±0.0336</td>
+      <td>0.2046±0.0664 / 0.3941±0.2768</td>
+      <td>50.72±11.98 / 80.08±10.20</td>
+      <td>24.83±5.14 / 25.28±20.21</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.7824±0.0905</span> / <span style="color:orange">0.7830±0.0958</span></td>
+      <td><span style="color:orange">0.9087±0.0727</span> / <span style="color:orange">0.8768±0.1048</span></td>
+      <td>17.10±15.93 / 16.76±17.92</td>
+      <td>2.62±1.97 / <span style="color:orange">3.04±2.89</span></td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / ***</td><td>*** / ***</td><td>** / ***</td><td>ns / ***</td></tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">10%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.7571±0.2617 / 0.7726±0.2383</td>
-      <td>0.9360±0.0724 / 0.9006±0.0949</td>
-      <td>3.47±4.10 / 16.65±23.11</td>
-      <td>1.18±1.69 / 3.42±3.95</td>
+      <td>0.5629±0.0654 / 0.5074±0.0416</td>
+      <td>0.4869±0.0783 / 0.4692±0.0739</td>
+      <td>80.51±4.75 / 76.16±8.12</td>
+      <td>21.19±5.61 / 19.36±5.02</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td><span style="color:orange">0.9043±0.0563</span> / <span style="color:orange">0.8820±0.0672</span></td>
-      <td><span style="color:orange">0.9366±0.0292</span> / <span style="color:red">0.9638±0.0238</span></td>
-      <td><span style="color:orange">2.31±2.38</span> / <span style="color:orange">1.95±1.58</span></td>
-      <td><span style="color:orange">0.86±0.93</span> / <span style="color:red">0.39±0.23</span></td>
+      <td>0.7935±0.0111 / 0.6415±0.1535</td>
+      <td><span style="color:orange">0.9808±0.0036</span> / 0.9414±0.0571</td>
+      <td><span style="color:red">3.75±0.44</span> / 7.98±7.35</td>
+      <td><span style="color:red">0.72±0.07</span> / 5.03±6.71</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.2197±0.0934 / 0.0861±0.0795</td>
-      <td>0.1267±0.0600 / 0.0470±0.0476</td>
-      <td>63.26±16.18 / 45.25±16.20</td>
-      <td>31.98±12.37 / 22.29±8.15</td>
+      <td>0.7925±0.1407 / 0.7983±0.1233</td>
+      <td>0.8539±0.1030 / 0.9228±0.0429</td>
+      <td>4.40±3.10 / <span style="color:orange">2.50±1.57</span></td>
+      <td><span style="color:orange">1.01±0.80</span> / <span style="color:orange">0.70±0.58</span></td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.5481±0.0825 / 0.5319±0.1413</td>
-      <td>0.4341±0.0805 / 0.4039±0.1171</td>
-      <td>40.89±3.44 / 41.81±3.63</td>
-      <td>12.41±2.49 / 14.17±4.29</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td><span style="color:orange">0.8386±0.0207</span> / 0.8324±0.0440</td>
+      <td>0.8143±0.0239 / 0.8526±0.0391</td>
+      <td>14.32±3.58 / 11.81±5.26</td>
+      <td>2.56±0.70 / 2.35±0.91</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.8453±0.0826 / 0.8047±0.1713</td>
-      <td>0.8625±0.1056 / 0.9128±0.0800</td>
-      <td>57.27±70.09 / 63.08±76.72</td>
-      <td>13.11±14.02 / 10.02±13.48</td>
+      <td>0.8270±0.0916 / 0.7781±0.2139</td>
+      <td><span style="color:red">0.9855±0.0086</span> / <span style="color:orange">0.9632±0.0171</span></td>
+      <td>8.29±6.62 / 28.29±45.29</td>
+      <td>1.76±1.12 / 4.03±4.34</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td>0.7976±0.0988 / 0.7115±0.1598</td>
-      <td>0.6985±0.1434 / 0.5889±0.1824</td>
-      <td>206.87±27.15 / 244.58±32.16</td>
-      <td>55.43±9.72 / 85.73±20.72</td>
+      <td>0.7375±0.0437 / 0.6637±0.0383</td>
+      <td>0.6262±0.0591 / 0.5294±0.0477</td>
+      <td>63.03±3.88 / 65.58±5.13</td>
+      <td>12.14±3.06 / 16.46±2.77</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td>0.7230±0.3360 / 0.7828±0.2911</td>
-      <td>0.9355±0.0770 / 0.9216±0.0478</td>
-      <td>12.10±18.15 / 5.15±5.70</td>
-      <td>0.87±0.80 / 0.91±0.52</td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9238±0.0989</span> / <span style="color:red">0.9023±0.1354</span></td>
-      <td><span style="color:red">0.9411±0.0989</span> / <span style="color:orange">0.9543±0.1192</span></td>
-      <td><span style="color:red">2.01±0.83</span> / <span style="color:red">1.82±1.09</span></td>
-      <td><span style="color:red">0.81±0.56</span> / <span style="color:orange">0.51±0.33</span></td>
+      <td>0.7006±0.0035 / <span style="color:orange">0.8761±0.0266</span></td>
+      <td>0.8627±0.0091 / <span style="color:red">0.9644±0.0050</span></td>
+      <td><span style="color:orange">4.23±0.78</span> / <span style="color:red">1.44±0.15</span></td>
+      <td>1.53±0.60 / <span style="color:red">0.36±0.03</span></td>
     </tr>
     <tr>
-      <td rowspan="8" style="font-weight:bold;">20%</td>
+      <td>ERSR</td>
+      <td>0.7316±0.1169 / 0.7132±0.1057</td>
+      <td>0.8785±0.0299 / 0.8579±0.0212</td>
+      <td>23.61±11.69 / 48.11±10.52</td>
+      <td>4.47±1.60 / 6.68±0.86</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.8631±0.0351</span> / <span style="color:red">0.8785±0.0609</span></td>
+      <td>0.9170±0.0347 / 0.9245±0.0311</td>
+      <td>9.51±9.55 / 8.38±10.30</td>
+      <td>1.46±0.98 / 1.58±1.38</td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>* / **</td><td>ns / ***</td><td>** / ***</td><td>*** / ***</td></tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">20%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.9006±0.0776 / 0.8718±0.0880</td>
-      <td>0.9487±0.0351 / 0.9013±0.0548</td>
-      <td>13.59±18.82 / 27.60±34.45</td>
-      <td>1.67±2.06 / 5.19±5.15</td>
+      <td>0.5978±0.0530 / 0.5988±0.0708</td>
+      <td>0.4728±0.0741 / 0.5436±0.1074</td>
+      <td>84.32±1.55 / 75.26±10.61</td>
+      <td>26.63±6.08 / 18.87±9.23</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td><span style="color:orange">0.9271±0.0382</span> / <span style="color:orange">0.9350±0.0319</span></td>
-      <td>0.9633±0.0164 / 0.9622±0.0191</td>
-      <td><span style="color:orange">1.45±1.68</span> / <span style="color:red">0.82±0.49</span></td>
-      <td><span style="color:orange">0.28±0.20</span> / <span style="color:orange">0.19±0.08</span></td>
+      <td>0.8820±0.0288 / 0.8952±0.0169</td>
+      <td>0.8928±0.0846 / 0.9341±0.0444</td>
+      <td>38.41±34.77 / 4.48±4.53</td>
+      <td>6.83±6.74 / 1.08±0.63</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.7798±0.1079 / 0.6424±0.1881</td>
-      <td>0.6725±0.1353 / 0.5891±0.1896</td>
-      <td>19.83±24.34 / 16.20±27.08</td>
-      <td>4.42±5.29 / 6.20±13.75</td>
+      <td>0.8224±0.1051 / 0.8451±0.0762</td>
+      <td>0.8602±0.0907 / 0.8791±0.0725</td>
+      <td><span style="color:orange">4.17±2.91</span> / <span style="color:orange">3.47±2.96</span></td>
+      <td>0.94±0.73 / 0.70±0.47</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.6474±0.0826 / 0.5862±0.0817</td>
-      <td>0.5093±0.1021 / 0.4344±0.0755</td>
-      <td>42.84±6.97 / 46.98±14.12</td>
-      <td>11.55±2.21 / 14.01±3.17</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td><span style="color:orange">0.8880±0.0359</span> / 0.8949±0.0365</td>
+      <td>0.8809±0.0662 / 0.9051±0.0511</td>
+      <td>8.88±5.54 / 8.83±5.24</td>
+      <td>1.62±1.08 / 1.52±0.65</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.9025±0.0435 / 0.8774±0.1136</td>
-      <td><span style="color:red">0.9711±0.0154</span> / <span style="color:red">0.9730±0.0207</span></td>
-      <td>7.07±6.50 / 3.85±3.01</td>
-      <td>1.23±0.76 / 1.07±0.73</td>
+      <td>0.8877±0.0196 / 0.8973±0.0104</td>
+      <td><span style="color:red">0.9567±0.0102</span> / 0.9589±0.0066</td>
+      <td>7.11±6.27 / 7.36±5.41</td>
+      <td>0.88±0.65 / 1.02±0.81</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td>0.7453±0.1196 / 0.7661±0.1137</td>
-      <td>0.6543±0.1707 / 0.6615±0.1329</td>
-      <td>167.89±71.82 / 185.51±52.25</td>
-      <td>42.99±18.13 / 44.33±13.67</td>
+      <td>0.8008±0.0195 / 0.7837±0.0323</td>
+      <td>0.7128±0.0311 / 0.6759±0.0408</td>
+      <td>60.89±4.56 / 67.13±1.74</td>
+      <td>8.92±0.42 / 10.25±0.91</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td>0.9146±0.0678 / 0.9119±0.0518</td>
-      <td>0.9149±0.0538 / 0.9256±0.0530</td>
-      <td>3.01±2.15 / 2.72±1.69</td>
-      <td>0.94±0.69 / 0.90±0.52</td>
-    </tr>
-    <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9341±0.2012</span> / <span style="color:red">0.9502±0.1578</span></td>
-      <td><span style="color:orange">0.9703±0.0212</span> / <span style="color:orange">0.9721±0.0321</span></td>
-      <td><span style="color:red">1.21±1.33</span> / <span style="color:orange">1.15±0.32</span></td>
-      <td><span style="color:red">0.21±0.19</span> / <span style="color:red">0.19±0.07</span></td>
+      <td>0.7567±0.0498 / <span style="color:orange">0.9048±0.0198</span></td>
+      <td>0.9019±0.0516 / <span style="color:red">0.9597±0.0043</span></td>
+      <td>5.54±2.85 / 3.53±3.41</td>
+      <td><span style="color:orange">0.84±0.30</span> / <span style="color:orange">0.47±0.15</span></td>
     </tr>
     <tr>
-      <td rowspan="8" style="font-weight:bold;">50%</td>
+      <td>ERSR</td>
+      <td>0.6550±0.1487 / 0.7851±0.0675</td>
+      <td>0.7301±0.0827 / 0.7407±0.0973</td>
+      <td>43.14±7.13 / 74.99±5.94</td>
+      <td>9.74±3.32 / 13.93±2.75</td>
+    </tr>
+    <tr style="background-color:#e0e0e0; font-weight:bold;">
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.9339±0.0197</span> / <span style="color:red">0.9407±0.0203</span></td>
+      <td><span style="color:orange">0.9565±0.0266</span> / <span style="color:orange">0.9591±0.0125</span></td>
+      <td><span style="color:red">2.14±0.84</span> / <span style="color:red">0.56±0.22</span></td>
+      <td><span style="color:red">0.25±0.10</span> / <span style="color:red">0.09±0.03</span></td>
+    </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td></tr>
+    <tr>
+      <td rowspan="10" style="font-weight:bold;">50%</td>
       <td>CGS (TMI 2025)</td>
-      <td>0.8879±0.1328 / 0.8818±0.1189</td>
-      <td>0.9136±0.1277 / <span style="color:orange">0.9624±0.0233</span></td>
-      <td>10.55±25.17 / 5.00±10.71</td>
-      <td>3.53±8.00 / <span style="color:orange">0.63±0.90</span></td>
+      <td>0.6209±0.1084 / 0.5518±0.0120</td>
+      <td>0.5163±0.1275 / 0.4600±0.0177</td>
+      <td>76.59±10.37 / 80.82±5.15</td>
+      <td>24.89±9.87 / 24.25±3.84</td>
     </tr>
     <tr>
       <td>DECSeg (PR 2025)</td>
-      <td><span style="color:orange">0.9200±0.0514</span> / 0.8982±0.0800</td>
-      <td>0.9429±0.0227 / 0.8978±0.0580</td>
-      <td><span style="color:orange">1.40±1.17</span> / 8.37±20.05</td>
-      <td><span style="color:orange">0.30±0.15</span> / 1.16±1.33</td>
+      <td><span style="color:orange">0.9246±0.0122</span> / 0.8821±0.0393</td>
+      <td>0.9561±0.0068 / 0.9582±0.0084</td>
+      <td><span style="color:orange">1.79±1.35</span> / 2.30±1.10</td>
+      <td>0.48±0.25 / 0.54±0.21</td>
     </tr>
     <tr>
       <td>STAC (BIBM 2024)</td>
-      <td>0.7533±0.0625 / 0.6062±0.1148</td>
-      <td>0.6162±0.0795 / 0.4626±0.1195</td>
-      <td>15.17±23.88 / 11.44±25.54</td>
-      <td>2.74±3.60 / 4.02±8.79</td>
+      <td>0.8512±0.1222 / 0.8279±0.1166</td>
+      <td>0.9242±0.0426 / 0.8870±0.0712</td>
+      <td>2.21±1.94 / 2.11±1.14</td>
+      <td>0.52±0.49 / 0.61±0.43</td>
     </tr>
     <tr>
-      <td>MetaSSL (TMI 2025)</td>
-      <td>0.6591±0.0673 / 0.5979±0.0776</td>
-      <td>0.5207±0.0822 / 0.4502±0.0818</td>
-      <td>41.35±3.32 / 42.57±3.72</td>
-      <td>11.39±1.68 / 13.17±2.89</td>
+      <td>MetaSSL (TMI 2026)</td>
+      <td>0.9112±0.0286 / 0.9182±0.0179</td>
+      <td>0.9388±0.0253 / 0.9396±0.0327</td>
+      <td>4.25±3.20 / 6.34±6.57</td>
+      <td>0.84±0.46 / 1.23±0.83</td>
     </tr>
     <tr>
       <td>DiffRect (MICCAI 2024)</td>
-      <td>0.9039±0.0379 / 0.8904±0.0758</td>
-      <td>0.9393±0.0512 / 0.9520±0.0370</td>
-      <td>12.07±13.35 / 7.78±7.56</td>
-      <td>2.11±1.96 / 1.90±1.07</td>
+      <td>0.8864±0.0314 / 0.8797±0.0428</td>
+      <td><span style="color:red">0.9681±0.0045</span> / <span style="color:red">0.9704±0.0050</span></td>
+      <td>2.39±1.12 / 5.28±6.57</td>
+      <td><span style="color:orange">0.42±0.22</span> / 0.42±0.18</td>
     </tr>
     <tr>
       <td>Text-SemiSeg (MICCAI 2025)</td>
-      <td>0.8913±0.0282 / 0.8463±0.0972</td>
-      <td>0.8421±0.0552 / 0.7758±0.1369</td>
-      <td>77.50±66.81 / 85.80±51.76</td>
-      <td>17.75±11.39 / 26.30±21.90</td>
+      <td>0.8906±0.0108 / 0.8912±0.0103</td>
+      <td>0.8475±0.0162 / 0.8449±0.0105</td>
+      <td>47.88±6.81 / 55.21±8.69</td>
+      <td>4.37±1.09 / 5.56±1.25</td>
     </tr>
     <tr>
       <td>SynFoC (CVPR 2025)</td>
-      <td>0.8442±0.1702 / <span style="color:orange">0.9181±0.0537</span></td>
-      <td><span style="color:orange">0.9554±0.0408</span> / 0.9317±0.0504</td>
-      <td>4.29±4.59 / <span style="color:orange">2.43±1.76</span></td>
-      <td>1.04±0.91 / 0.79±0.56</td>
+      <td>0.8088±0.0539 / <span style="color:orange">0.9317±0.0096</span></td>
+      <td><span style="color:orange">0.9678±0.0055</span> / <span style="color:orange">0.9664±0.0035</span></td>
+      <td>2.42±1.22 / <span style="color:orange">0.94±0.02</span></td>
+      <td>0.82±0.54 / <span style="color:orange">0.20±0.01</span></td>
+    </tr>
+    <tr>
+      <td>ERSR</td>
+      <td>0.8509±0.0135 / 0.8503±0.0229</td>
+      <td>0.8175±0.0285 / 0.8396±0.0640</td>
+      <td>67.52±3.26 / 59.10±15.16</td>
+      <td>8.84±0.70 / 7.28±3.70</td>
     </tr>
     <tr style="background-color:#e0e0e0; font-weight:bold;">
-      <td>APPR (Ours)</td>
-      <td><span style="color:red">0.9387±0.1989</span> / <span style="color:red">0.9588±0.1032</span></td>
-      <td><span style="color:red">0.9733±0.0583</span> / <span style="color:red">0.9789±0.0792</span></td>
-      <td><span style="color:red">1.18±0.98</span> / <span style="color:red">1.01±0.35</span></td>
-      <td><span style="color:red">0.21±0.14</span> / <span style="color:red">0.18±0.08</span></td>
+      <td>APRNet (Ours)</td>
+      <td><span style="color:red">0.9351±0.0239</span> / <span style="color:red">0.9442±0.0159</span></td>
+      <td>0.9550±0.0302 / 0.9545±0.0084</td>
+      <td><span style="color:red">1.67±1.46</span> / <span style="color:red">0.51±0.18</span></td>
+      <td><span style="color:red">0.22±0.17</span> / <span style="color:red">0.09±0.03</span></td>
     </tr>
+    <tr style="color:#7030a0; border-top:1px dashed #999;"><td>BH-adjusted q</td><td>*** / **</td><td>*** / ***</td><td>*** / ***</td><td>*** / ***</td></tr>
   </tbody>
 </table>
-<p align="center"><em>Table 1: Quantitative comparison between APPR and state-of-the-art methods.</em></p>
+<p align="center"><em>Table 1: Quantitative comparison between APRNet and state-of-the-art methods.</em></p>
 
 ### Qualitative Visualization Results
 <p align="center">
@@ -641,26 +711,8 @@ python eval.py \
 </p>
 <p align="center"><em>Figure 3: Qualitative visualization of maxillary sinus segmentation results.</em></p>
 
-### Ablation Study & Heatmap Analysis
-<p align="center">
-<img src="figures/heatmap.png" alt="Ablation Heatmap Results" width="800">
-</p>
-<p align="center"><em>Figure 4: Heatmap analysis for module effectiveness validation.</em></p>
-
-<!--### Ablation study under 20% labeled data
-
-| Method | Dice_fg | Left Dice | Right Dice | Mean Dice | Mean IoU | Mean PPV | Mean HD95 ↓ | Mean ASSD ↓ |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| E1 Baseline | 0.2197 | 0.2288 | 0.2099 | 0.2194 | 0.1247 | 0.1268 | 45.0352 | 10.6486 |
-| E2 S1 only | 0.6048 | - | - | - | - | - | - | - |
-| E3 S2 only | 0.0782 | 0.0801 | 0.0761 | 0.0781 | 0.0409 | 0.0415 | 45.9121 | 11.2694 |
-| E4 S3 only | 0.8914 | 0.8991 | 0.8816 | 0.8904 | 0.8045 | 0.9641 | 2.1667 | 0.5079 |
-| E5 S1+S2 | 0.3376 | 0.4064 | 0.2441 | 0.3253 | 0.2021 | 0.7054 | 21.9025 | 6.2135 |
-| E6 S1+S3 | 0.9034 | 0.9129 | 0.8806 | 0.8968 | 0.8308 | 0.9561 | 3.4096 | 1.5254 |
-| E7 S2+S3 | 0.8974 | 0.9027 | 0.8810 | 0.8919 | 0.8226 | 0.9413 | 3.9960 | 2.4420 |
-| **E8 Full** | **0.9258** | **0.9279** | **0.9230** | **0.9255** | **0.8624** | **0.9727** | **1.7719** | **0.4116** | -->
 ### Comprehensive Ablation Study (20% Labeled Data)
-<p><strong> Comprehensive ablation study results for the left and right maxillary sinuses. Stage I, Stage II, and Stage III denote anatomy-aware pretraining, semantic misalignment rectification, and collaborative pseudo-label rectification, respectively. Since E2 performs foreground-oriented pretraining without explicit left/right multi-class supervision, only Dice<sub>fg</sub> is reported.</p>
+<p><strong>Stage-wise ablation results for the left and right maxillary sinuses.</strong> Stages I, II and III denote anatomy-aware pretraining, semantic misalignment rectification (SMR) and co-refined pseudo-label generation (CPG), respectively. Learned variants report means and sample standard deviations across three independent runs on NasalSeg with 20% labeled data. E1 is the deterministic non-learning prior. E2 reports bilateral metrics after spatial side assignment.</p>
 
 <table border="1" cellpadding="6" cellspacing="0" style="width:100%; font-size:14px; border-collapse:collapse; text-align:center; margin:1em 0;">
   <thead>
@@ -676,113 +728,27 @@ python eval.py \
       <th>III</th>
       <th>Dice ↑</th>
       <th>PPV ↑</th>
-      <th>HD95 ↓</th>
-      <th>ASSD ↓</th>
+      <th>HD95 (mm) ↓</th>
+      <th>ASSD (mm) ↓</th>
     </tr>
   </thead>
   <tbody>
-    <tr>
-      <td>E1</td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td>0.2197</td>
-      <td>0.2288±0.0695 / 0.2099±0.0657</td>
-      <td>0.1328±0.0448 / 0.1208±0.0421</td>
-      <td>45.21±8.29 / 44.86±9.04</td>
-      <td>10.49±1.81 / 10.80±2.00</td>
-    </tr>
-    <tr>
-      <td>E2</td>
-      <td>✅</td>
-      <td></td>
-      <td></td>
-      <td>0.6048</td>
-      <td>- / -</td>
-      <td>- / -</td>
-      <td>- / -</td>
-      <td>- / -</td>
-    </tr>
-    <tr>
-      <td>E3</td>
-      <td></td>
-      <td>✅</td>
-      <td></td>
-      <td>0.0782</td>
-      <td>0.0801±0.0279 / 0.0761±0.0291</td>
-      <td>0.0426±0.0157 / 0.0405±0.0163</td>
-      <td>46.47±6.99 / 45.36±6.99</td>
-      <td>11.28±1.45 / 11.26±1.49</td>
-    </tr>
-    <tr>
-      <td>E4</td>
-      <td></td>
-      <td></td>
-      <td>✅</td>
-      <td><em>0.8914</em></td>
-      <td><em>0.8991±0.0287 / 0.8816±0.0458</em></td>
-      <td><em>0.9651±0.0288 / 0.9631±0.0649</em></td>
-      <td><em>2.04±1.02 / 2.30±1.93</em></td>
-      <td><em>0.50±0.24 / 0.52±0.32</em></td>
-    </tr>
-    <tr>
-      <td>E5</td>
-      <td>✅</td>
-      <td>✅</td>
-      <td></td>
-      <td>0.3376</td>
-      <td>0.4064±0.1042 / 0.2441±0.1260</td>
-      <td>0.7358±0.2296 / 0.6751±0.3057</td>
-      <td>22.37±8.23 / 21.43±7.30</td>
-      <td>5.53±2.64 / 6.90±4.08</td>
-    </tr>
-    <tr>
-      <td>E6</td>
-      <td>✅</td>
-      <td></td>
-      <td>✅</td>
-      <td><em>0.9034</em></td>
-      <td><em>0.9129±0.0331 / 0.8806±0.0554</em></td>
-      <td><em>0.9586±0.0225 / 0.9535±0.0895</em></td>
-      <td><em>2.99±1.71 / 3.83±4.85</em></td>
-      <td><em>1.52±0.33 / 1.53±0.63</em></td>
-    </tr>
-    <tr>
-      <td>E7</td>
-      <td></td>
-      <td>✅</td>
-      <td>✅</td>
-      <td>0.8974</td>
-      <td>0.9027±0.0224 / 0.8810±0.0306</td>
-      <td>0.9490±0.0255 / 0.9336±0.0482</td>
-      <td>3.71±1.29 / 4.28±2.42</td>
-      <td>2.40±0.21 / 3.49±0.42</td>
-    </tr>
-    <tr style="font-weight:bold; border-top: 1px solid #333;">
-      <td>E8 (Full)</td>
-      <td>✅</td>
-      <td>✅</td>
-      <td>✅</td>
-      <td>0.9258</td>
-      <td>0.9279±0.0253 / 0.9230±0.0291</td>
-      <td>0.9722±0.0278 / 0.9733±0.0195</td>
-      <td>1.98±2.83 / 1.56±0.59</td>
-      <td>0.41±0.32 / 0.41±0.22</td>
-    </tr>
+    <tr><td>E1</td><td></td><td></td><td></td><td>0.5286</td><td>0.5189±0.3214 / 0.5361±0.2659</td><td>0.8328±0.2128 / 0.7912±0.2322</td><td>15.33±7.21 / 14.59±8.08</td><td>5.54±1.07 / 5.79±1.45</td></tr>
+    <tr><td>E2</td><td>✅</td><td></td><td></td><td>0.7678</td><td>0.7514±0.2384 / 0.7744±0.2601</td><td>0.9626±0.0547 / 0.9188±0.1336</td><td>6.06±10.50 / 4.56±7.81</td><td>1.50±1.28 / 1.26±1.24</td></tr>
+    <tr><td>E3</td><td></td><td>✅</td><td></td><td>0.2782</td><td>0.2801±0.2279 / 0.3761±0.3291</td><td>0.3426±0.2157 / 0.3405±0.1163</td><td>36.47±6.99 / 35.36±6.99</td><td>9.28±1.45 / 9.26±1.49</td></tr>
+    <tr><td>E4</td><td></td><td></td><td>✅</td><td>0.6758</td><td>0.6892±0.0165 / 0.6966±0.0211</td><td>0.8654±0.0121 / 0.8558±0.0325</td><td>29.31±3.56 / 36.25±5.32</td><td>7.26±0.36 / 6.68±1.25</td></tr>
+    <tr><td>E5</td><td>✅</td><td>✅</td><td></td><td>0.8660</td><td>0.8954±0.0438 / 0.8314±0.0899</td><td>0.9066±0.0786 / 0.8523±0.1352</td><td>7.73±7.34 / 17.60±6.73</td><td>1.15±0.98 / 2.71±1.31</td></tr>
+    <tr><td>E6</td><td>✅</td><td></td><td>✅</td><td>0.9034</td><td>0.7135±0.0162 / 0.6954±0.1125</td><td>0.6995±0.0698 / 0.6952±0.0139</td><td>18.33±2.21 / 22.21±1.29</td><td>7.56±0.58 / 6.99±2.21</td></tr>
+    <tr><td>E7</td><td></td><td>✅</td><td>✅</td><td>0.3572</td><td>0.3893±0.1432 / 0.3368±0.1568</td><td>0.5019±0.0895 / 0.4484±0.0842</td><td>33.63±6.83 / 41.82±8.81</td><td>8.12±1.23 / 5.11±0.86</td></tr>
+    <tr style="font-weight:bold; border-top:1px solid #333;"><td>E8 (Full)</td><td>✅</td><td>✅</td><td>✅</td><td>0.9458</td><td>0.9524±0.0046 / 0.9497±0.0103</td><td>0.9539±0.0502 / 0.9628±0.0542</td><td>1.05±1.57 / 1.08±1.46</td><td>0.22±0.35 / 0.22±0.33</td></tr>
   </tbody>
 </table>
-<p align="center"><em>Table 2:</strong> Comprehensive ablation study results for the left and right maxillary sinuses under 20% labeled data.</em></p>
+<p align="center"><em>Table 2: Comprehensive ablation study results for the left and right maxillary sinuses under 20% labeled data.</em></p>
 
 ### Key takeaways:
-- **Stage III** is the main performance driver for structure completeness and boundary refinement.
-- **Stage I** provides the strongest warm-start for stable foreground localization.
-- **Full APRNet** achieves the best overall accuracy and the smallest bilateral performance gap.
-
-<!--Key takeaways:
-
-- **Stage III** is the main performance driver for structure completeness and boundary refinement.
-- **Stage I** provides the strongest warm-start for stable foreground localization.
-- **Full APPR** achieves the best overall accuracy and the smallest bilateral performance gap. -->
+- **Stage I** increases foreground Dice from 0.5286 for the non-learning prior (E1) to 0.7678 (E2).
+- **Stage II** increases mean bilateral Dice from 0.7629 (E2) to 0.8634 (E5).
+- **Full APRNet** reaches mean bilateral Dice 0.9511 (E8), compared with 0.8634 after Stages I and II, and reduces mean HD95 from 12.67 to 1.06 mm.
 
 ## Citation
 
@@ -790,7 +756,7 @@ If you use this repository in your work, please cite the APRNet paper:
 
 ```bibtex
 @article{aprnet2025,
-  title   = {APRNet: Anatomy-aware Pretraining and Pseudo-label Rectification for Semi-Supervised Maxillary Sinus Segmentation},
+  title   = {APRNet: Anatomy-guided Progressive Pseudo-label Rectification for Semi-supervised Maxillary Sinus Segmentation},
   author  = {Anonymous},
   journal = {Under preparation},
   year    = {2025}

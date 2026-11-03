@@ -3286,7 +3286,7 @@ def train(args) -> None:
 
 
 def parse_train_args():
-    parser = argparse.ArgumentParser(description="APPR unified training entry")
+    parser = argparse.ArgumentParser(description="APRNet unified training entry")
     parser.add_argument("--stage", type=str, required=True, choices=["unsup", "sup", "corefined"])
     parser.add_argument("--dataset-root", type=str, default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--split-json", type=str, default=None, help="Default: <dataset-root>/splits.json")

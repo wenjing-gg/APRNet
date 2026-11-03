@@ -44,7 +44,7 @@ def build_eval_args(cli_args, ckpt_args: Dict[str, object], orientation_summary:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Minimal final evaluation for APPR checkpoints")
+    parser = argparse.ArgumentParser(description="Minimal final evaluation for APRNet checkpoints")
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--dataset-root", type=str, default=DEFAULT_DATASET_ROOT)
     parser.add_argument("--split-json", type=str, default=None, help="Default: <dataset-root>/splits.json")
