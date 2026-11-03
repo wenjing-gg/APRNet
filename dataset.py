@@ -24,7 +24,7 @@ import monai.utils.misc as monai_misc_mod
 
 
 MONAI_SAFE_MAX_SEED = int(np.iinfo(np.uint32).max)
-DEFAULT_DATASET_ROOT = "/data/cyf/codes/tooth/NasalSeg"
+DEFAULT_DATASET_ROOT = "data/NasalSeg"
 ORIENTATION_TOL = 1e-4
 
 
